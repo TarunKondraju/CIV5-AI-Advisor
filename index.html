@@ -205,12 +205,14 @@
                 // Setup an offscreen canvas for the full map
                 const offscreen = document.createElement('canvas');
                 const exportZoom = 0.5; // Reduced from 1.0 to avoid hitting the Python bridge payload limit
-                // Add generous padding
-                const paddingX = HEX_WIDTH * exportZoom * 3;
-                const paddingY = HEX_HEIGHT * exportZoom * 4;
+                // Exact bounding box padding
+                const paddingX = 40;
+                const paddingY = 40;
+                const zHexW = HEX_WIDTH * exportZoom;
+                const zHexH = HEX_HEIGHT * exportZoom;
                 
-                const exportWidth = (maxX + 2) * (HEX_WIDTH * exportZoom) + paddingX * 2;
-                const exportHeight = (maxY + 3) * (HEX_HEIGHT * 0.75 * exportZoom) + paddingY * 2;
+                const exportWidth = (maxX * zHexW) + (1.5 * zHexW) + paddingX * 2;
+                const exportHeight = (maxY * zHexH * 0.75) + zHexH + paddingY * 2;
                 
                 offscreen.width = exportWidth;
                 offscreen.height = exportHeight;
@@ -220,8 +222,8 @@
                 canvas = offscreen;
                 ctx = offCtx;
                 zoom = exportZoom;
-                cameraX = -paddingX;
-                cameraY = -paddingY;
+                cameraX = -paddingX - (zHexW / 2);
+                cameraY = paddingY + (zHexH / 2);
                 
                 // The offscreen canvas has no parent, so renderMap will use its existing width/height
                 
