@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Civ 5 AI Advisor</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --accent: #38bdf8;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            overflow: hidden;
+            display: flex;
+        }
+        #sidebar {
+            width: 350px;
+            background: var(--panel-bg);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        #sidebar h1 {
+            color: var(--accent);
+            margin: 0 0 5px 0;
+            font-size: 24px;
+        }
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .stats-box {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .stat-label { color: var(--text-muted); font-weight: bold; font-size: 13px; }
+        .stat-value { color: var(--text-light); font-size: 13px; }
+        .stat-value.live { color: #4ade80; }
+        
+        .chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            user-select: text;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            overflow: hidden;
+        }
+        .chat-log {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .chat-bubble {
+            padding: 10px 14px;
+            border-radius: 8px;
+            max-width: 90%;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .chat-user {
+            background: #2563eb;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .chat-ai {
+            background: #334155;
+            color: var(--text-light);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 10px;
+            background: rgba(0,0,0,0.4);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .chat-input-area input {
+            flex-grow: 1;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 4px;
+            outline: none;
+        }
+        .chat-input-area button {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 0 15px;
+            margin-left: 10px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .chat-input-area button:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            cursor: grab;
+        }
+        #map-container:active { cursor: grabbing; }
+        #map-canvas {
+            position: absolute;
+            top: 0; left: 0;
+        }
+        
+        #tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            pointer-events: none;
+            display: none;
+            font-size: 13px;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            white-space: pre-wrap;
+            min-width: 200px;
+        }
+        #tooltip h4 { margin: 0 0 8px 0; color: var(--accent); font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px; }
+        #tooltip ul { margin: 0; padding-left: 20px; color: var(--text-muted); }
+        #tooltip li { margin-bottom: 3px; }
+        .pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h1>AI Advisor</h1>
+        <div class="subtitle" id="ai-network-label">Local Network: Ollama</div>
+
+        <div class="stats-box">
+            <div class="stat-row">
+                <span class="stat-label">Game Status</span>
+                <span class="stat-value live" id="game-status">● LIVE</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Active Player:</span>
+                <span class="stat-value" id="stat-player">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Turn Number:</span>
+                <span class="stat-value" id="stat-turn">-</span>
+            </div>
+            <button onclick="openSettings()" style="width: 100%; margin-top: 10px; background: #334155; color: var(--text-light); border: 1px solid rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; cursor: pointer; font-family: inherit;">⚙️ AI Settings</button>
+            <button onclick="exportMapImage(this)" style="width: 100%; margin-top: 10px; background: var(--accent); color: var(--bg-dark); border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit;">Export Map as Image</button>
+        </div>
+        
+        <script>
+        async function exportMapImage(btn) {
+            if (!gameState || !gameState.map) return;
+            
+            try {
+                // Flash button to indicate processing
+                const oldText = btn.innerText;
+                btn.innerText = "Processing Full Map...";
+                
+                // Calculate map bounds
+                let maxX = 0, maxY = 0;
+                for (let t of gameState.map) {
+                    if (t.x > maxX) maxX = t.x;
+                    if (t.y > maxY) maxY = t.y;
+                }
+                
+                // Backup global rendering variables
+                const origCanvas = canvas;
+                const origCtx = ctx;
+                const origZoom = zoom;
+                const origCamX = cameraX;
+                const origCamY = cameraY;
+                
+                // Setup an offscreen canvas for the full map
+                const offscreen = document.createElement('canvas');
+                const exportZoom = 0.5; // Reduced from 1.0 to avoid hitting the Python bridge payload limit
+                // Add generous padding
+                const paddingX = HEX_WIDTH * exportZoom * 3;
+                const paddingY = HEX_HEIGHT * exportZoom * 4;
+                
+                const exportWidth = (maxX + 2) * (HEX_WIDTH * exportZoom) + paddingX * 2;
+                const exportHeight = (maxY + 3) * (HEX_HEIGHT * 0.75 * exportZoom) + paddingY * 2;
+                
+                offscreen.width = exportWidth;
+                offscreen.height = exportHeight;
+                const offCtx = offscreen.getContext('2d');
+                
+                // Override globals temporarily for renderMap
+                canvas = offscreen;
+                ctx = offCtx;
+                zoom = exportZoom;
+                cameraX = -paddingX;
+                cameraY = -paddingY;
+                
+                // The offscreen canvas has no parent, so renderMap will use its existing width/height
+                
+                // Draw full map to offscreen canvas
+                renderMap();
+                
+                // Extract image (Using JPEG is 10x smaller payload than PNG over the Python bridge)
+                const b64 = offscreen.toDataURL('image/jpeg', 0.85);
+                
+                // Restore globals
+                canvas = origCanvas;
+                ctx = origCtx;
+                zoom = origZoom;
+                cameraX = origCamX;
+                cameraY = origCamY;
+                renderMap(); // Restore UI canvas
+                
+                const turn = document.getElementById('stat-turn').innerText || '0';
+                const res = await window.pywebview.api.save_map_image(b64, `Civ5_Full_Map_Turn_${turn}.jpg`);
+                if (res.startsWith("Saved")) {
+                    alert("✅ " + res);
+                } else if (res.startsWith("Error")) {
+                    alert("❌ Failed to save map: " + res);
+                }
+                btn.innerText = oldText;
+            } catch(e) {
+                console.error(e);
+                alert("❌ JS Error: " + (e.message || JSON.stringify(e)));
+                if (btn) btn.innerText = "Export Map as Image";
+            }
+        }
+        </script>
+
+        <div class="chat-container">
+            <div class="chat-log" id="chat-log">
+                <div class="chat-bubble chat-ai">
+                    Hello! I am your local AI strategist. Wait for the map to load, then ask me anything about your current situation. For example, "Where should I settle my next city?" or "What is my best military move right now?"
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Type your strategy question..." onkeydown="if(event.key === 'Enter') sendChat()">
+                <button id="chat-send-btn" onclick="sendChat()">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: var(--panel-bg); padding: 20px; border-radius: 8px; width: 400px; border: 1px solid rgba(255,255,255,0.1);">
+            <h2 style="margin-top: 0; color: var(--accent);">AI Configuration</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Leave Endpoint blank to disable AI and use Map Viewer Mode.</p>
+            
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">API Endpoint URL</label>
+            <input type="text" id="ai-endpoint" style="width: 100%; padding: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; box-sizing: border-box;" placeholder="http://127.0.0.1:11434/api/chat">
+            
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">Model Name</label>
+            <input type="text" id="ai-model" style="width: 100%; padding: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; box-sizing: border-box;" placeholder="llama3.1">
+            
+            <label style="display: block; margin-bottom: 5px; font-size: 13px;">API Key (Optional for OpenAI/Claude)</label>
+            <input type="password" id="api-key" style="width: 100%; padding: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; box-sizing: border-box;">
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="closeSettings()" style="background: transparent; color: white; border: 1px solid rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                <button onclick="saveSettings()" style="background: var(--accent); color: var(--bg-dark); border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Save & Connect</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="map-container">
+        <canvas id="map-canvas"></canvas>
+        <div id="tooltip"></div>
+    </div>
+
+    <script>
+        let canvas = document.getElementById('map-canvas');
+        let ctx = canvas.getContext('2d');
+        const tooltip = document.getElementById('tooltip');
+        
+        let gameState = null;
+        let highlightedTiles = [];
+        let hoveredTile = null;
+
+        // Camera and Zoom Settings
+        const HEX_SIZE = 16;
+        const HEX_WIDTH = HEX_SIZE * Math.sqrt(3);
+        const HEX_HEIGHT = HEX_SIZE * 2;
+        let cameraX = 0;
+        let cameraY = 0;
+        let zoom = 1.0;
+        let isDragging = false;
+        
+        function debugLog(msg) {
+            // Silencing debug logs for production
+        }
+
+        const CIV_DATA = {
+            "America": { primary: "#000080", secondary: "#FFFFFF", emoji: "🦅", icon: "icons/American.png" },
+            "Arabia": { primary: "#32CD32", secondary: "#228B22", emoji: "🌙", icon: "icons/Arabian.png" },
+            "Austria": { primary: "#FF0000", secondary: "#FFFFFF", emoji: "⛰️", icon: "icons/Austrian.png" },
+            "Aztec": { primary: "#008080", secondary: "#8B4513", emoji: "🌞", icon: "icons/Aztec.png" },
+            "Babylon": { primary: "#008080", secondary: "#00008B", emoji: "🐂", icon: "icons/Babylonian.png" },
+            "Brazil": { primary: "#006400", secondary: "#32CD32", emoji: "🦜", icon: "icons/Brazilian.png" },
+            "Byzantium": { primary: "#800080", secondary: "#ADD8E6", emoji: "☦️", icon: "icons/Byzantine.png" },
+            "Carthage": { primary: "#301934", secondary: "#808080", emoji: "🌴", icon: "icons/Carthaginian.png" },
+            "Celt": { primary: "#ADD8E6", secondary: "#006400", emoji: "☘️", icon: "icons/Celtic.png" },
+            "China": { primary: "#FFFFFF", secondary: "#008000", emoji: "🐉", icon: "icons/Chinese.png" },
+            "Denmark": { primary: "#FFFDD0", secondary: "#FF0000", emoji: "⛵", icon: "icons/Danish.png" },
+            "Egypt": { primary: "#FFFF00", secondary: "#FFD700", emoji: "👁️", icon: "icons/Egyptian.png" },
+            "England": { primary: "#FF0000", secondary: "#FFFFFF", emoji: "🌹", icon: "icons/English.png" },
+            "Ethiopia": { primary: "#556B2F", secondary: "#FFFF00", emoji: "🦁", icon: "icons/Ethiopian.png" },
+            "France": { primary: "#FFB6C1", secondary: "#0000FF", emoji: "⚜️", icon: "icons/French.png" },
+            "Germany": { primary: "#808080", secondary: "#000000", emoji: "🍺", icon: "icons/German.png" },
+            "Greece": { primary: "#ADD8E6", secondary: "#FFFFFF", emoji: "🏛️", icon: "icons/Greek.png" },
+            "Hun": { primary: "#FFA500", secondary: "#808080", emoji: "🏹", icon: "icons/Hunnic.png" },
+            "Inca": { primary: "#8B4513", secondary: "#008080", emoji: "🏔️", icon: "icons/Incan.png" },
+            "India": { primary: "#FFA500", secondary: "#008000", emoji: "🪷", icon: "icons/Indian.png" },
+            "Indonesia": { primary: "#8B4513", secondary: "#ADD8E6", emoji: "🎭", icon: "icons/Indonesian.png" },
+            "Iroquois": { primary: "#D2B48C", secondary: "#008080", emoji: "🌲", icon: "icons/Iroquois.png" },
+            "Japan": { primary: "#FFFFFF", secondary: "#FF0000", emoji: "💮", icon: "icons/Japanese.png" },
+            "Korea": { primary: "#87CEEB", secondary: "#FFB6C1", emoji: "☯️", icon: "icons/Korean.png" },
+            "Maya": { primary: "#800080", secondary: "#FFC0CB", emoji: "📅", icon: "icons/Mayan.png" },
+            "Mongol": { primary: "#008080", secondary: "#FF0000", emoji: "🐎", icon: "icons/Mongolian.png" },
+            "Morocco": { primary: "#FF0000", secondary: "#FFD700", emoji: "🌟", icon: "icons/Moroccan.png" },
+            "Netherlands": { primary: "#FFA500", secondary: "#0000FF", emoji: "🌷", icon: "icons/Dutch.png" },
+            "Ottoman": { primary: "#FF0000", secondary: "#40E0D0", emoji: "🕌", icon: "icons/Ottoman.png" },
+            "Persia": { primary: "#006400", secondary: "#FFD700", emoji: "🗡️", icon: "icons/Persian.png" },
+            "Poland": { primary: "#FF0000", secondary: "#FFFFFF", emoji: "🐴", icon: "icons/Polish.png" },
+            "Polynesia": { primary: "#008080", secondary: "#000000", emoji: "🗿", icon: "icons/Polynesian.png" },
+            "Portugal": { primary: "#00008B", secondary: "#FFFF00", emoji: "⚓", icon: "icons/Portuguese.png" },
+            "Rome": { primary: "#FF0000", secondary: "#00008B", emoji: "🛡️", icon: "icons/Roman.png" },
+            "Russia": { primary: "#006400", secondary: "#FFD700", emoji: "🐻", icon: "icons/Russian.png" },
+            "Shoshone": { primary: "#FFFF00", secondary: "#00008B", emoji: "⛺", icon: "icons/Shoshone.png" },
+            "Siam": { primary: "#FFD700", secondary: "#00008B", emoji: "🐘", icon: "icons/Siamese.png" },
+            "Songhai": { primary: "#654321", secondary: "#FFFF00", emoji: "🏇", icon: "icons/Songhai.png" },
+            "Spain": { primary: "#FF0000", secondary: "#FFFF00", emoji: "✝️", icon: "icons/Spanish.png" },
+            "Sweden": { primary: "#FFFF00", secondary: "#0000FF", emoji: "👑", icon: "icons/Swedish.png" },
+            "Venice": { primary: "#FFD700", secondary: "#FF0000", emoji: "🚤", icon: "icons/Venetian.png" },
+            "Zulu": { primary: "#D2B48C", secondary: "#FF0000", emoji: "⚔️", icon: "icons/Zulu.png" },
+            "Assyria": { primary: "#FFA500", secondary: "#FFFF00", emoji: "🏹", icon: "icons/Assyrian.png" }
+        };
+
+        const loadedIcons = {};
+        for (let key of Object.keys(CIV_DATA)) {
+            if (CIV_DATA[key].icon) {
+                let img = new Image();
+                img.src = CIV_DATA[key].icon;
+                loadedIcons[key] = img;
+            }
+        }
+
+        function getCivData(playerId) {
+            if (playerId === 63) {
+                return { primary: "#000000", secondary: "#FF0000", emoji: "☠️", name: "Barbarian" }; // Barbarian
+            }
+            if (playerId >= 22 && playerId < 63) {
+                const hue = (playerId * 137.5) % 360;
+                return { primary: `hsl(${hue}, 70%, 40%)`, secondary: "#FFFFFF", emoji: "🏳️", name: "CityState" }; // City State
+            }
+            if (gameState && gameState.players) {
+                for (let p of gameState.players) {
+                    if (p.id === playerId && p.civ) {
+                        for (let civName of Object.keys(CIV_DATA)) {
+                            if (p.civ.includes(civName)) {
+                                let cData = CIV_DATA[civName];
+                                cData.name = civName;
+                                return cData;
+                            }
+                        }
+                    }
+                }
+            }
+            const hue = (playerId * 137.5) % 360;
+            return { primary: `hsl(${hue}, 70%, 40%)`, secondary: "#FFFFFF", emoji: "🚩", name: "Unknown" };
+        }
+
+        function initBridge() {
+            if (window.pywebview) {
+                setInterval(fetchState, 1000);
+            } else {
+                window.addEventListener('pywebviewready', function() {
+                    setInterval(fetchState, 1000);
+                });
+            }
+        }
+        initBridge();
+
+        let currentVersion = 0;
+        let isFetching = false;
+        async function fetchState() {
+            if (isFetching) return;
+            isFetching = true;
+            try {
+                debugLog(`Calling get_state(${currentVersion})...`);
+                const rawResponse = await window.pywebview.api.get_state(currentVersion);
+                
+                if (!rawResponse || rawResponse === "") {
+                    debugLog("Response empty (No map updates).");
+                    isFetching = false;
+                    return;
+                }
+                
+                debugLog(`Received JSON payload: ${rawResponse.length} characters.`);
+                
+                const parsed = JSON.parse(rawResponse);
+                debugLog(`Parsed JSON. Map Version: ${parsed.version}`);
+                
+                if (parsed.version > currentVersion) {
+                    currentVersion = parsed.version;
+                    const data = parsed.data;
+                    if (data && data.map) {
+                        debugLog(`State has map with ${data.map.length} tiles.`);
+                        // Center camera on first load
+                        if (!gameState) {
+                            debugLog(`Centering camera...`);
+                            let midX = data.map[Math.floor(data.map.length/2)].x * HEX_WIDTH;
+                            let midY = data.map[Math.floor(data.map.length/2)].y * HEX_HEIGHT * 0.75;
+                            cameraX = midX - canvas.parentElement.clientWidth / 2;
+                            cameraY = midY - canvas.parentElement.clientHeight / 2;
+                        }
+                        gameState = data;
+                        debugLog(`Calling renderMap()...`);
+                        renderMap();
+                        debugLog(`Map Render Complete. Calling updateSidebar()...`);
+                        updateSidebar();
+                        debugLog(`Sidebar Update Complete.`);
+                    } else {
+                        debugLog(`ERROR: No map data inside parsed payload!`);
+                    }
+                }
+            } catch (err) {
+                debugLog(`CRASH: ${err.stack}`);
+                debugOverlay.style.backgroundColor = 'rgba(255,0,0,0.85)';
+                debugOverlay.style.color = 'white';
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        let currentAiBubble = null;
+        function createAiBubble() {
+            const log = document.getElementById('chat-log');
+            const loaders = document.querySelectorAll('.pulse');
+            loaders.forEach(l => l.remove());
+            
+            currentAiBubble = document.createElement('div');
+            currentAiBubble.className = 'chat-bubble chat-ai';
+            log.appendChild(currentAiBubble);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function appendAiText(text) {
+            if (!currentAiBubble) createAiBubble();
+            // Handle markdown newlines
+            if (text === '\n') {
+                currentAiBubble.appendChild(document.createElement('br'));
+            } else {
+                let span = document.createElement('span');
+                span.innerText = text;
+                currentAiBubble.appendChild(span);
+            }
+            document.getElementById('chat-log').scrollTop = document.getElementById('chat-log').scrollHeight;
+        }
+        
+        function addHighlights(jsonStr) {
+            try {
+                const tiles = JSON.parse(jsonStr);
+                highlightedTiles = highlightedTiles.concat(tiles);
+                renderMap();
+            } catch(e) {
+                console.error("Failed to parse highlight JSON:", e);
+            }
+        }
+
+        async function sendChat() {
+            const inputField = document.getElementById('chat-input');
+            const btn = document.getElementById('chat-send-btn');
+            const log = document.getElementById('chat-log');
+            const msg = inputField.value.trim();
+            
+            if (!msg || !gameState) return;
+            
+            // Add user message to UI
+            inputField.value = '';
+            inputField.disabled = true;
+            btn.disabled = true;
+            
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble chat-user';
+            userBubble.innerText = msg;
+            log.appendChild(userBubble);
+            
+            const loadingBubble = document.createElement('div');
+            loadingBubble.className = 'chat-bubble chat-ai pulse';
+            loadingBubble.innerText = "Analyzing map and generating strategy...";
+            log.appendChild(loadingBubble);
+            log.scrollTop = log.scrollHeight;
+
+            try {
+                // Call Local Ollama Python Backend (Streams response via window.evaluate_js)
+                let response = await window.pywebview.api.send_chat_message(msg);
+                
+                if (response && response.includes("Error")) {
+                    log.removeChild(loadingBubble);
+                    const errBubble = document.createElement('div');
+                    errBubble.className = 'chat-bubble chat-ai';
+                    errBubble.innerText = response;
+                    log.appendChild(errBubble);
+                }
+
+            } catch(err) {
+                const loaders = document.querySelectorAll('.pulse');
+                loaders.forEach(l => l.remove());
+                const errBubble = document.createElement('div');
+                errBubble.className = 'chat-bubble chat-ai';
+                errBubble.innerText = "Error: " + err;
+                log.appendChild(errBubble);
+            }
+            
+            log.scrollTop = log.scrollHeight;
+            inputField.disabled = false;
+            btn.disabled = false;
+            inputField.focus();
+        }
+
+        function updateSidebar() {
+            if (!gameState) return;
+            let activeName = "Unknown";
+            for (let p of gameState.players) {
+                if (p.id === gameState.active_player) {
+                    activeName = p.civ;
+                    break;
+                }
+            }
+            document.getElementById('stat-player').innerText = activeName;
+            document.getElementById('stat-turn').innerText = gameState.turn || "-";
+        }
+
+        function getHexCenter(gridX, gridY) {
+            let zHexW = HEX_WIDTH * zoom;
+            let zHexH = HEX_HEIGHT * zoom;
+            let x = gridX * zHexW;
+            if (gridY % 2 !== 0) x += zHexW / 2;
+            let viewHeight = canvas.parentElement ? canvas.parentElement.clientHeight : canvas.height;
+            let y = viewHeight - (gridY * (zHexH * 0.75));
+            return { x: x - cameraX, y: y - cameraY };
+        }
+
+        function drawHex(x, y, color, rw, rnw, rne) {
+            let zHexS = HEX_SIZE * zoom;
+            let zHexW = HEX_WIDTH * zoom;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                let angle_deg = 60 * i - 30;
+                let angle_rad = Math.PI / 180 * angle_deg;
+                let hx = x + zHexS * Math.cos(angle_rad);
+                let hy = y + zHexS * Math.sin(angle_rad);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            
+            // Draw Rivers
+            ctx.strokeStyle = "#3b82f6";
+            ctx.lineWidth = 3 * zoom;
+            if (rw) {
+                ctx.beginPath();
+                ctx.moveTo(x - zHexW/2, y + zHexS/2);
+                ctx.lineTo(x - zHexW/2, y - zHexS/2);
+                ctx.stroke();
+            }
+            if (rnw) {
+                ctx.beginPath();
+                ctx.moveTo(x - zHexW/2, y - zHexS/2);
+                ctx.lineTo(x, y - zHexS);
+                ctx.stroke();
+            }
+            if (rne) {
+                ctx.beginPath();
+                ctx.moveTo(x, y - zHexS);
+                ctx.lineTo(x + zHexW/2, y - zHexS/2);
+                ctx.stroke();
+            }
+        }
+
+        function renderMap() {
+            if (!gameState || !gameState.map) return;
+            if (canvas.parentElement) {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            for (let t of gameState.map) {
+                let center = getHexCenter(t.x, t.y);
+
+                let color = "#333";
+                if (t.t === 0) color = "#65a30d"; // Grassland
+                else if (t.t === 1) color = "#d4d4aa"; // Plains
+                else if (t.t === 2) color = "#fef08a"; // Desert
+                else if (t.t === 3) color = "#d4d4d8"; // Tundra
+                else if (t.t === 4) color = "#f8fafc"; // Snow
+                else if (t.t === 5) color = "#38bdf8"; // Coast
+                else if (t.t === 6) color = "#0284c7"; // Ocean
+                
+                let featureName = (t.f > -1 && gameState.feature_dict) ? gameState.feature_dict[t.f] : "";
+                
+                if (t.m) color = "#475569"; // Mountains dark slate-grey
+                else if (featureName.includes("Ice")) color = "#cbd5e1"; // Ice pale blue-grey
+                else if (featureName.includes("Flood Plains")) color = "#15803d"; // Dark green mud-streaked
+                else if (featureName.includes("Fallout")) color = "rgba(217, 70, 239, 0.5)"; // Magenta hazard
+                
+                drawHex(center.x, center.y, color, t.rw, t.rnw, t.rne);
+                
+                // Draw Features
+                if (featureName.includes("Forest")) {
+                    ctx.fillStyle = "rgba(20, 83, 45, 0.7)";
+                    drawHex(center.x, center.y, ctx.fillStyle, false, false, false);
+                    ctx.fillStyle = "#064e3b";
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y - (4 * zoom));
+                    ctx.lineTo(center.x - (3 * zoom), center.y + (2 * zoom));
+                    ctx.lineTo(center.x + (3 * zoom), center.y + (2 * zoom));
+                    ctx.fill();
+                } else if (featureName.includes("Jungle")) {
+                    ctx.fillStyle = "rgba(74, 222, 128, 0.7)";
+                    drawHex(center.x, center.y, ctx.fillStyle, false, false, false);
+                    ctx.strokeStyle = "#166534";
+                    ctx.lineWidth = 1 * zoom;
+                    ctx.beginPath();
+                    ctx.moveTo(center.x - (4 * zoom), center.y - (4 * zoom));
+                    ctx.lineTo(center.x + (4 * zoom), center.y + (4 * zoom));
+                    ctx.moveTo(center.x + (4 * zoom), center.y - (4 * zoom));
+                    ctx.lineTo(center.x - (4 * zoom), center.y + (4 * zoom));
+                    ctx.stroke();
+                } else if (featureName.includes("Marsh")) {
+                    ctx.fillStyle = "#4d7c0f";
+                    drawHex(center.x, center.y, ctx.fillStyle, false, false, false);
+                    ctx.strokeStyle = "#60a5fa";
+                    ctx.lineWidth = 1.5 * zoom;
+                    ctx.beginPath();
+                    ctx.moveTo(center.x - (6 * zoom), center.y - (2 * zoom));
+                    ctx.lineTo(center.x + (4 * zoom), center.y - (2 * zoom));
+                    ctx.moveTo(center.x - (4 * zoom), center.y + (2 * zoom));
+                    ctx.lineTo(center.x + (6 * zoom), center.y + (2 * zoom));
+                    ctx.stroke();
+                } else if (featureName.includes("Oasis")) {
+                    ctx.fillStyle = "#06b6d4";
+                    ctx.beginPath();
+                    ctx.arc(center.x, center.y, 4 * zoom, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                
+                // Draw Elevation Overlays
+                if (t.m) {
+                    ctx.fillStyle = "#1e293b";
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y - (8 * zoom));
+                    ctx.lineTo(center.x - (8 * zoom), center.y + (6 * zoom));
+                    ctx.lineTo(center.x + (8 * zoom), center.y + (6 * zoom));
+                    ctx.fill();
+                } else if (t.h) {
+                    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+                    ctx.lineWidth = 2 * zoom;
+                    ctx.beginPath();
+                    ctx.moveTo(center.x - (6 * zoom), center.y + (2 * zoom));
+                    ctx.lineTo(center.x, center.y - (4 * zoom));
+                    ctx.lineTo(center.x + (6 * zoom), center.y + (2 * zoom));
+                    ctx.stroke();
+                }
+                
+                // Draw Territory Ownership Overlay
+                if (t.o > -1 && t.o < 63) { // Ignore barbarians (63) and unowned
+                    const civData = getCivData(t.o);
+                    ctx.fillStyle = civData.primary;
+                    ctx.globalAlpha = 0.25;
+                    
+                    ctx.beginPath();
+                    for (let i = 0; i <= 6; i++) {
+                        let angle_deg = 60 * i + 30;
+                        let angle_rad = Math.PI / 180 * angle_deg;
+                        let hx = center.x + (HEX_SIZE * zoom) * Math.cos(angle_rad);
+                        let hy = center.y + (HEX_SIZE * zoom) * Math.sin(angle_rad);
+                        if (i === 0) ctx.moveTo(hx, hy);
+                        else ctx.lineTo(hx, hy);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    ctx.globalAlpha = 1.0;
+                    ctx.strokeStyle = civData.secondary;
+                    ctx.lineWidth = 1.5 * zoom;
+                    ctx.stroke();
+                }
+                
+                // Draw Resources
+                let rIcon = "";
+                if (t.r > -1 && gameState.resource_dict) {
+                    let rName = gameState.resource_dict[t.r] || "";
+                    if (rName.includes("Iron")) rIcon = "⛏️";
+                    else if (rName.includes("Horse")) rIcon = "🐴";
+                    else if (rName.includes("Coal")) rIcon = "⬛";
+                    else if (rName.includes("Oil")) rIcon = "🛢️";
+                    else if (rName.includes("Aluminum")) rIcon = "⬜";
+                    else if (rName.includes("Uranium")) rIcon = "☢️";
+                    else if (rName.includes("Citrus")) rIcon = "🍊";
+                    else if (rName.includes("Cocoa")) rIcon = "🍫";
+                    else if (rName.includes("Copper")) rIcon = "🟤";
+                    else if (rName.includes("Cotton")) rIcon = "☁️";
+                    else if (rName.includes("Dyes")) rIcon = "🟣";
+                    else if (rName.includes("Furs")) rIcon = "🧥";
+                    else if (rName.includes("Gems")) rIcon = "💎";
+                    else if (rName.includes("Gold")) rIcon = "🪙";
+                    else if (rName.includes("Incense")) rIcon = "🕯️";
+                    else if (rName.includes("Ivory")) rIcon = "🐘";
+                    else if (rName.includes("Marble")) rIcon = "🏛️";
+                    else if (rName.includes("Salt")) rIcon = "🧂";
+                    else if (rName.includes("Silk")) rIcon = "🦋";
+                    else if (rName.includes("Silver")) rIcon = "🥈";
+                    else if (rName.includes("Spices")) rIcon = "🌶️";
+                    else if (rName.includes("Sugar")) rIcon = "🎋";
+                    else if (rName.includes("Truffles")) rIcon = "🐗";
+                    else if (rName.includes("Wine")) rIcon = "🍷";
+                    else if (rName.includes("Crab")) rIcon = "🦀";
+                    else if (rName.includes("Pearl")) rIcon = "🦪";
+                    else if (rName.includes("Whale")) rIcon = "🐋";
+                    else if (rName.includes("Jewelry")) rIcon = "📿";
+                    else if (rName.includes("Porcelain")) rIcon = "🏺";
+                    else if (rName.includes("Clove") || rName.includes("Nutmeg") || rName.includes("Pepper")) rIcon = "🌿";
+                    else if (rName.includes("Stone")) rIcon = "🪨";
+                    else if (rName.includes("Banana")) rIcon = "🍌";
+                    else if (rName.includes("Fish")) rIcon = "🐟";
+                    else if (rName.includes("Sheep")) rIcon = "🐑";
+                    else if (rName.includes("Cattle") || rName.includes("Cow")) rIcon = "🐄";
+                    else if (rName.includes("Deer")) rIcon = "🦌";
+                    else if (rName.includes("Bison")) rIcon = "🦬";
+                    else if (rName.includes("Wheat")) rIcon = "🌾";
+                    else rIcon = "❓";
+                }
+                
+                if (rIcon) {
+                    ctx.fillStyle = "#fff";
+                    ctx.font = (12 * zoom) + "px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(rIcon, center.x, center.y + (6 * zoom));
+                }
+                
+                // Draw Improvements
+                let iIcon = "";
+                if (t.i > -1 && gameState.improvement_dict) {
+                    let iName = gameState.improvement_dict[t.i] || "";
+                    if (iName.includes("Barbarian") || iName.includes("Encampment")) iIcon = "🗿";
+                    else if (iName.includes("Farm")) iIcon = "🌾";
+                    else if (iName.includes("Mine")) iIcon = "⛏️";
+                    else if (iName.includes("Camp")) iIcon = "⛺";
+                    else if (iName.includes("Pasture")) iIcon = "🐄";
+                    else if (iName.includes("Plantation")) iIcon = "🌴";
+                    else if (iName.includes("Quarry")) iIcon = "🧱";
+                    else if (iName.includes("Trading Post")) iIcon = "💰";
+                }
+                
+                if (iIcon) {
+                    ctx.fillStyle = "#fff";
+                    ctx.font = (12 * zoom) + "px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    // Offset the improvement icon slightly from the resource icon
+                    ctx.fillText(iIcon, center.x, center.y - (6 * zoom));
+                }
+                
+                if (hoveredTile && hoveredTile.x === t.x && hoveredTile.y === t.y) {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                    drawHex(center.x, center.y, "rgba(255, 255, 255, 0.4)", false, false, false);
+                }
+                
+                // Draw AI Highlights!
+                for (let h of highlightedTiles) {
+                    if (h.x === t.x && h.y === t.y) {
+                        ctx.strokeStyle = "rgba(251, 191, 36, 0.9)"; // Glowing Amber
+                        ctx.lineWidth = 4 * zoom;
+                        
+                        let zHexS = HEX_SIZE * zoom;
+                        ctx.beginPath();
+                        for (let i = 0; i < 6; i++) {
+                            let angle_deg = 60 * i - 30;
+                            let angle_rad = Math.PI / 180 * angle_deg;
+                            let hx = center.x + zHexS * Math.cos(angle_rad);
+                            let hy = center.y + zHexS * Math.sin(angle_rad);
+                            if (i === 0) ctx.moveTo(hx, hy);
+                            else ctx.lineTo(hx, hy);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        
+                        // Add an inner glow
+                        ctx.fillStyle = "rgba(251, 191, 36, 0.3)";
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Draw Cities and Units
+            for (let p of gameState.players) {
+                let isHuman = p.id === gameState.active_player;
+                const civData = getCivData(p.id);
+                let pColor = civData.primary;
+                let sColor = civData.secondary;
+                let emoji = civData.emoji;
+
+                if (p.cities) {
+                    for (let c of p.cities) {
+                        let center = getHexCenter(c.x, c.y);
+                        ctx.fillStyle = pColor;
+                        ctx.fillRect(center.x - (8 * zoom), center.y - (8 * zoom), 16 * zoom, 16 * zoom);
+                        ctx.strokeStyle = sColor;
+                        ctx.lineWidth = 2 * zoom;
+                        ctx.strokeRect(center.x - (8 * zoom), center.y - (8 * zoom), 16 * zoom, 16 * zoom);
+                        
+                        
+                        let iconImg = civData.name ? loadedIcons[civData.name] : null;
+                        if (iconImg && iconImg.complete) {
+                            ctx.drawImage(iconImg, center.x - 6 * zoom, center.y - 6 * zoom, 12 * zoom, 12 * zoom);
+                        } else {
+                            ctx.fillStyle = sColor;
+                            ctx.font = (12 * zoom) + "px Arial";
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.fillText(emoji, center.x, center.y);
+                        }
+                        
+                        ctx.fillStyle = "#fff";
+                        ctx.font = (10 * zoom) + "px Inter";
+                        ctx.fillText(c.name, center.x, center.y - (14 * zoom));
+                    }
+                }
+                
+                if (p.units) {
+                    for (let u of p.units) {
+                        let center = getHexCenter(u.x, u.y);
+                        ctx.fillStyle = pColor;
+                        ctx.beginPath();
+                        ctx.arc(center.x, center.y, 7 * zoom, 0, 2*Math.PI);
+                        ctx.fill();
+                        ctx.strokeStyle = sColor;
+                        ctx.lineWidth = 1.5 * zoom;
+                        ctx.stroke();
+                        
+                        let iconImg = civData.name ? loadedIcons[civData.name] : null;
+                        if (iconImg && iconImg.complete) {
+                            ctx.drawImage(iconImg, center.x - 5 * zoom, center.y - 5 * zoom, 10 * zoom, 10 * zoom);
+                        } else {
+                            ctx.fillStyle = sColor;
+                            ctx.font = (10 * zoom) + "px Arial";
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.fillText(emoji, center.x, center.y);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mouse Events
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomAmount = 0.1;
+            const oldZoom = zoom;
+            
+            if (e.deltaY < 0) zoom = Math.min(zoom + zoomAmount, 3.0);
+            else zoom = Math.max(zoom - zoomAmount, 0.3);
+            
+            const zoomRatio = zoom / oldZoom;
+            const mouseX = e.offsetX;
+            const mouseY = e.offsetY;
+            
+            cameraX = (cameraX + mouseX) * zoomRatio - mouseX;
+            cameraY = (cameraY + mouseY) * zoomRatio - mouseY;
+            
+            if (gameState) renderMap();
+        });
+
+        canvas.addEventListener('mousedown', () => isDragging = true);
+        canvas.addEventListener('mouseup', () => isDragging = false);
+        canvas.addEventListener('mouseleave', () => isDragging = false);
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                cameraX -= e.movementX;
+                cameraY -= e.movementY;
+                if (gameState) renderMap();
+            } else if (gameState && gameState.map) {
+                let rect = canvas.getBoundingClientRect();
+                let mx = e.clientX - rect.left;
+                let my = e.clientY - rect.top;
+                
+                let closest = null;
+                let minDist = 999999;
+                for (let t of gameState.map) {
+                    let center = getHexCenter(t.x, t.y);
+                    let dx = mx - center.x;
+                    let dy = my - center.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closest = t;
+                    }
+                }
+
+                if (closest && minDist < (HEX_SIZE * zoom)) {
+                    hoveredTile = closest;
+                    
+                    let html = `<h4>Tile (${closest.x}, ${closest.y})</h4><ul>`;
+                    
+                    let terrainTypes = ["Grassland", "Plains", "Desert", "Tundra", "Snow", "Coast / Lake", "Ocean"];
+                    let tName = terrainTypes[closest.t] || "Unknown";
+                    html += `<li>Terrain: ${tName}</li>`;
+                    
+                    let elevation = "Flat";
+                    if (closest.m) elevation = "Mountain";
+                    else if (closest.h) elevation = "Hill";
+                    html += `<li>Elevation: ${elevation}</li>`;
+                    
+                    let water = [];
+                    if (closest.t === 5) water.push("Coast/Lake");
+                    else if (closest.t === 6) water.push("Ocean");
+                    if (closest.rw || closest.rnw || closest.rne) water.push("River");
+                    if (water.length > 0) {
+                        html += `<li>Water: ${water.join(", ")}</li>`;
+                    }
+                    
+                    let fName = (closest.f > -1 && gameState.feature_dict) ? gameState.feature_dict[closest.f] : "None";
+                    let rName = (closest.r > -1 && gameState.resource_dict) ? gameState.resource_dict[closest.r] : "None";
+                    let iName = (closest.i > -1 && gameState.improvement_dict) ? gameState.improvement_dict[closest.i] : "None";
+                    html += `<li>Feature: ${fName}</li>`;
+                    html += `<li>Resource: ${rName}</li>`;
+                    html += `<li>Improvement: ${iName}</li>`;
+                    
+                    for (let p of gameState.players) {
+                        if (p.cities) {
+                            let city = p.cities.find(c => c.x === closest.x && c.y === closest.y);
+                            if (city) {
+                                html += `<br><h4 style="color:${p.id === gameState.active_player ? '#4ade80' : '#f97316'};">City: ${city.name} (${p.civ})</h4>`;
+                                html += `<li>Pop: ${city.pop}</li>`;
+                                html += `<li>HP: ${city.maxhp - city.hp}/${city.maxhp}</li>`;
+                                html += `<li>Building: ${city.build || 'None'} (⚒️${city.hammers || 0}/t)</li>`;
+                            }
+                        }
+                        
+                        if (p.units) {
+                            let unit = p.units.find(u => u.x === closest.x && u.y === closest.y);
+                            if (unit) {
+                                html += `<br><h4 style="color:${p.id === gameState.active_player ? '#4ade80' : '#f97316'};">Unit: ${unit.name} (${p.civ})</h4>`;
+                                html += `<li>HP: ${unit.hp}/${unit.maxhp || 100}</li>`;
+                                html += `<li>Lvl ${unit.lvl} (XP: ${unit.xp})</li>`;
+                            }
+                        }
+                    }
+                    html += `</ul>`;
+                    
+                    tooltip.innerHTML = html;
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (mx + 20) + 'px';
+                    tooltip.style.top = (my + 20) + 'px';
+                } else {
+                    hoveredTile = null;
+                    tooltip.style.display = 'none';
+                }
+                renderMap();
+            }
+        });
+        
+        // Window Resize
+        window.addEventListener('resize', () => {
+            renderMap();
+        });
+
+        async function openSettings() {
+            try {
+                const cfg = await window.pywebview.api.get_config();
+                document.getElementById('ai-endpoint').value = cfg.ai_endpoint;
+                document.getElementById('ai-model').value = cfg.ai_model;
+                document.getElementById('api-key').value = cfg.api_key;
+                document.getElementById('settings-modal').style.display = 'flex';
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        
+        function closeSettings() {
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+        
+        async function saveSettings() {
+            const endpoint = document.getElementById('ai-endpoint').value;
+            const model = document.getElementById('ai-model').value;
+            const key = document.getElementById('api-key').value;
+            try {
+                await window.pywebview.api.save_config({
+                    "ai_endpoint": endpoint,
+                    "ai_model": model,
+                    "api_key": key
+                });
+                
+                if (endpoint.trim() === "") {
+                    document.getElementById('ai-network-label').innerText = "Mode: Map Viewer Offline";
+                } else {
+                    document.getElementById('ai-network-label').innerText = `Network: Configured (${model})`;
+                }
+                
+                closeSettings();
+            } catch(e) {
+                console.error(e);
+                alert("Failed to save settings.");
+            }
+        }
+        
+        // Initial setup
+        setTimeout(async () => {
+            if (window.pywebview && window.pywebview.api) {
+                try {
+                    const cfg = await window.pywebview.api.get_config();
+                    if (!cfg.ai_endpoint || cfg.ai_endpoint.trim() === "") {
+                        document.getElementById('ai-network-label').innerText = "Mode: Map Viewer Offline";
+                    } else {
+                        document.getElementById('ai-network-label').innerText = `Network: Configured (${cfg.ai_model})`;
+                    }
+                } catch(e) {}
+            }
+        }, 1000);
+
+        // Initialize Map
+        renderMap();
+    </script>
+</body>
+</html>

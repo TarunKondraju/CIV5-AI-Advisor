@@ -1,0 +1,57 @@
+# Civilization 5 AI Strategy Advisor - User Guide
+
+Welcome to the Civ 5 AI Advisor! This tool acts as a veteran tactician that analyzes your game map in real-time and provides turn-by-turn military, scientific, and economic advice.
+
+---
+
+## 1. Do I Need to Install an AI?
+
+**The application itself DOES NOT include an AI.** Modern AI models (like Llama 3) are extremely large (4-5 GBs) and updating them requires heavy downloads. By keeping the AI separate, this software stays lightweight (a few megabytes) and allows you to use **any** AI you prefer.
+
+If you don't install an AI, the software will smoothly operate in **Map Viewer Offline Mode**. You can still use it on a second monitor to see a strategic map overview of your empire and export high-resolution screenshots.
+
+---
+
+## 2. How to Connect an AI (3 Options)
+
+To get actual strategy advice, you must connect an AI "Brain". Open the application and click the **⚙️ AI Settings** button in the sidebar. You have three options:
+
+### Option A: 100% Free & Offline (Ollama)
+If you have a decent gaming PC, you can run the AI locally on your own hardware for free.
+1. Download and install **Ollama** from https://ollama.com
+2. Open your Windows Command Prompt (cmd) and run this command: `ollama run llama3.1` (Wait for it to download).
+3. Open the **⚙️ AI Settings** in our app.
+4. Set the API Endpoint to: `http://127.0.0.1:11434/api/chat`
+5. Set the Model to: `llama3.1`
+6. Leave the API Key blank.
+
+### Option B: OpenAI (ChatGPT)
+If you have a ChatGPT developer account with credits, you can use their cloud models.
+1. Go to https://platform.openai.com/api-keys and generate a new secret API key.
+2. Open the **⚙️ AI Settings** in our app.
+3. Set the API Endpoint to: `https://api.openai.com/v1/chat/completions`
+4. Set the Model to: `gpt-4o` (or `gpt-4-turbo`)
+5. Paste your Secret API Key into the API Key box.
+
+### Option C: Anthropic (Claude)
+If you prefer Claude's strategy, you can route it through an OpenAI-compatible adapter.
+*(Note: You will need to use a proxy tool like LiteLLM for this, as Anthropic uses a slightly different API structure. Advanced users only).*
+
+---
+
+## 3. How to Use the Advisor
+
+1. **Start Civilization V**: Make sure the required Lua mod is enabled in the Civ 5 Mod Menu and load into a game.
+2. **Launch the Advisor**: Double click the desktop shortcut created during installation.
+3. **Wait for Sync**: The map will automatically appear once the game syncs. If you load a new game, the map will update dynamically.
+4. **Ask a Question**: Use the chat box on the right. Ask things like:
+   - *"Where should I settle my second city?"*
+   - *"What should be my technology path for a domination victory?"*
+   - *"Who should I attack first based on my current units?"*
+
+## 4. Exporting the Map & Getting the AI Log
+Click the **Export Map as Image** button on the left sidebar. The software will calculate the absolute boundaries of your entire discovered world and let you save it as a high-resolution JPEG image to share with friends.
+
+**NEW:** When you save the image, the software automatically creates a second file alongside it called `_Log.txt` (for example, `Civ5_Full_Map_Turn_250_Log.txt`). This is a **Comprehensive Game State Text Log** formatted perfectly for AI consumption. It contains exact data on all civilizations' treasuries, unlocked technologies, city yields, army locations, hitpoints, and diplomatic status. 
+
+If you are using ChatGPT or Claude in your web browser instead of the local app, you can simply **drag and drop** the map image AND the `_Log.txt` file directly into ChatGPT, and ask it for strategy advice based on the complete data!
