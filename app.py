@@ -53,7 +53,7 @@ class Api:
         if sys.platform == "darwin": # macOS
             LOG_FILE = os.path.expanduser(r"~/Library/Application Support/Sid Meier's Civilization 5/Logs/Lua.log")
         else: # Windows (default)
-            LOG_FILE = os.path.expanduser(r"~/Library/Application Support/Sid Meier's Civilization 5/Logs/Lua.log")
+            LOG_FILE = os.path.expanduser(r"~\Documents\My Games\Sid Meier's Civilization 5\Logs\Lua.log")
         
         self.last_turn = 0
         self.last_log_pos = 0

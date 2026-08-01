@@ -9,6 +9,7 @@ check_dict.py
 get_dict.py
 unify_*.py
 update_*.py
+build_*.py
 diff_output.txt
 real_diff.txt
 step_1911.txt
@@ -17,3 +18,4 @@ mac_memory.py
 ents.plist
 CivV_and_CivV_GaK_and_NW_v1-0-3-279_Steam_S3-0.CT
 Civ5_AI_Advisor_macOS/
+Civ5_AI_Advisor_Universal/
