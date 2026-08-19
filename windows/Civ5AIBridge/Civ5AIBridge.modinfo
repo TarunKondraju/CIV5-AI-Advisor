@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Mod id="12345678-1234-1234-1234-123456789abc" version="1">
+  <Properties>
+    <Name>Civ 5 AI Bridge</Name>
+    <Stability>Alpha</Stability>
+    <Teaser>Exports game state to Lua.log every turn for AI analysis.</Teaser>
+    <Description>This mod exports the current game state to Lua.log at the start of the human player's turn, allowing external AI scripts to read it.</Description>
+    <Authors>Antigravity</Authors>
+    <HideSetupGame>0</HideSetupGame>
+    <AffectsSavedGames>0</AffectsSavedGames>
+    <SupportsSinglePlayer>1</SupportsSinglePlayer>
+    <SupportsMultiplayer>1</SupportsMultiplayer>
+    <SupportsHotSeat>1</SupportsHotSeat>
+    <SupportsMac>1</SupportsMac>
+    <ReloadLandmarkSystem>0</ReloadLandmarkSystem>
+    <ReloadUnitSystem>0</ReloadUnitSystem>
+  </Properties>
+  <Dependencies />
+  <References />
+  <Blocks />
+  <Files>
+    <File md5="DUMMY_HASH" import="0">StateExporter.lua</File>
+  </Files>
+  <EntryPoints>
+    <EntryPoint type="InGameUIAddin" file="StateExporter.lua">
+      <Name>StateExporter</Name>
+      <Description>Exports game state</Description>
+    </EntryPoint>
+  </EntryPoints>
+</Mod>
