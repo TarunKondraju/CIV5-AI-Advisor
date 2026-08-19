@@ -1,163 +1,165 @@
-# 📘 Civilization V AI Advisor - Detailed Installation Guide
+# 🌍 Civilization V AI Advisor (Universal - Windows & macOS)
 
-This guide walks you through setting up **Civ 5 AI Advisor** on your computer step-by-step.
-
----
-
-## 📑 Table of Contents
-1. [Understanding the 2 Components](#1-understanding-the-2-components)
-2. [Windows Setup](#2-windows-setup)
-3. [macOS Setup](#3-macos-setup)
-4. [pywebview Troubleshooting & Workarounds](#4-pywebview-troubleshooting--workarounds)
-5. [Enabling the Mod in Civilization V](#5-enabling-the-mod-in-civilization-v)
-6. [Configuring AI (Ollama / ChatGPT / Claude)](#6-configuring-ai)
-7. [Troubleshooting & Common Issues](#7-troubleshooting--common-issues)
+A real-time AI strategic advisor and interactive live tactical map companion for **Sid Meier's Civilization V** (compatible with both Windows and macOS).
 
 ---
 
-## 1. Understanding the 2 Components
+## ⚡ Quick Summary: Do I Need to Install Python or `pywebview`?
 
-- **Part 1: The In-Game Mod (`Civ5AIBridge`)**: A Lua script that runs quietly inside Civ 5. Whenever a turn starts or you move units, it dumps your empire's state to `Lua.log`.
-- **Part 2: The Companion App (`CIV5-AI-Advisor`)**: A standalone application with a user interface that monitors `Lua.log` and renders your world map, stats, and provides AI recommendations.
+| Your Operating System / Usage | Need to Install Python or `pywebview`? | How to Run |
+| :--- | :---: | :--- |
+| 🪟 **Windows (Standalone App)** | ❌ **NO (Zero Setup)** | Double-click **`windows/Civ5_AI_Advisor/Civ5_AI_Advisor.exe`** |
+| 🍏 **macOS / Source Code Users** | ✅ **YES** | Run `pip3 install pywebview`, then `python3 app.py` |
+| 🌐 **Zero-Install (Browser Method)** | ❌ **NO (No App Needed)** | Drag & drop your game's **`Lua.log`** straight into ChatGPT / Claude |
 
 ---
 
-## 2. Windows Setup
+## ✨ Features
+- 🗺️ **Real-Time Live Tactical Map**: Synchronizes automatically with Civ 5 turn updates, territory expansion, and unit movements.
+- 🏛️ **Faction & City Analytics**: Real-time tracking of Science, Culture, Faith, Gold per turn, active city production, remaining turns, and production hammers across all known civilizations.
+- 🕵️ **Super Spy Diplomatic Intel**: Unveils hidden AI leader approaches (e.g., *Guarded*, *Hostile*, or *Deceptive - Planning Attack!*).
+- 🤖 **AI Strategy Advisor**: Integrated with local LLMs (**Ollama / Llama 3.1**) or cloud models (**OpenAI GPT-4o**) for turn-by-turn military, economic, and tactical advice.
+- 📸 **High-Resolution Map & AI Log Export**: Export full-resolution map images along with a comprehensive game state text log (`_Log.txt`) to easily share or paste into ChatGPT / Claude.
 
-### Step 1: Install Python or Anaconda (If you don't have it)
-1. Download Python from [python.org](https://www.python.org/downloads/) or install [Anaconda](https://www.anaconda.com/download).
-2. When running the standard Python installer, **check the box "Add Python to PATH"** before clicking Install.
+---
 
-### Step 2: Install Required Dependencies
-Open **Command Prompt** (<kbd>Win</kbd> + <kbd>R</kbd> $\rightarrow$ type `cmd` $\rightarrow$ press Enter) and run:
-```cmd
-pip install pywebview
-```
-*(Or if using Anaconda, run: `conda install -c conda-forge pywebview`)*
+## 🏗️ How It Works
 
-### Step 3: Copy the Mod to Your Civ 5 Folder
-Copy the folder named **`Civ5AIBridge`** into your Civilization 5 `MODS` directory:
-```text
-C:\Users\<YourUsername>\Documents\My Games\Sid Meier's Civilization 5\MODS\
-```
+The system operates using two lightweight components:
+1. **The In-Game Mod (`Civ5AIBridge`)**: A clean Lua script that runs inside Civilization V and writes your empire's state to `Lua.log` whenever a turn begins or units move.
+2. **The Desktop Advisor App**: A standalone companion app that reads `Lua.log` in real-time to render your live map and provide AI strategy chat.
 
-Inside that folder, you should have:
-- `Civ5AIBridge.modinfo`
-- `StateExporter.lua`
+---
 
-### Step 4: Turn On Logging in Civ 5
+## 🪟 Windows Setup (Zero Python Setup Needed)
+
+Everything is pre-packaged for Windows in the **`windows/`** folder.
+
+### Step 1: Install the In-Game Mod
+1. Copy the folder named **`Civ5AIBridge`** (located in `windows/Civ5AIBridge` or the root folder).
+2. Paste it into your Civilization 5 `MODS` folder:
+   ```text
+   %USERPROFILE%\Documents\My Games\Sid Meier's Civilization 5\MODS\
+   ```
+   *(Full path: `C:\Users\<YourUsername>\Documents\My Games\Sid Meier's Civilization 5\MODS\Civ5AIBridge`)*
+
+---
+
+### Step 2: Enable Logging in Civ 5
+Civ 5 needs logging enabled so the mod can export game state data:
 1. Open the file:
    ```text
-   C:\Users\<YourUsername>\Documents\My Games\Sid Meier's Civilization 5\config.ini
+   %USERPROFILE%\Documents\My Games\Sid Meier's Civilization 5\config.ini
    ```
-2. Search for `LoggingEnabled` and `MessageLog` and set both to `1`:
+2. Find the following lines (use <kbd>Ctrl</kbd> + <kbd>F</kbd>) and ensure they are both set to **`1`**:
    ```ini
    LoggingEnabled = 1
    MessageLog = 1
    ```
-3. Save the file.
-
-### Step 5: Launch the App
-Double click **`Launch_Advisor.bat`** in the project folder.
+3. Save and close `config.ini`.
 
 ---
 
-## 3. macOS Setup
+### Step 3: Launch the Advisor App
+- Open the **`windows/Civ5_AI_Advisor/`** folder and double-click **`Civ5_AI_Advisor.exe`** *(or run `Launch_Advisor.bat`)*.
+- **You do NOT need Python or `pywebview` installed on Windows.**
 
-### Step 1: Install Python & pywebview
-1. macOS comes with Python 3, or you can install it via [Homebrew](https://brew.sh) (`brew install python`).
-2. Open **Terminal** and run:
-   ```bash
-   pip3 install pywebview
-   ```
+---
 
-### Step 2: Copy the Mod to macOS MODS Folder
-1. Open **Finder**, press <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>, and enter:
+### Step 4: Enable the Mod in Civilization V
+1. Start **Sid Meier's Civilization V**.
+2. From the Main Menu, click **MODS** *(do not click standard Single Player)*.
+3. Check the box next to **Civ 5 AI Bridge** so it turns green.
+4. Click **NEXT** (Accept).
+5. Click **Single Player** $\rightarrow$ **Set Up Game** (or **Load Game** for modded saves).
+6. Start your game. As soon as you enter the world or take a turn, the AI Advisor will switch to **`● LIVE`** and render your live map!
+
+> ⚠️ **Important Note on Saved Games**: In Civilization V, loading an unmodded standard save file will disable active mods. To play with the AI Advisor, always start a new match or load from your **`ModdedSaves`** list via the **MODS** menu!
+
+---
+
+## 🍏 macOS Setup Instructions
+
+### Step 1: Install the In-Game Mod
+1. Open **Finder**, press <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>, and paste:
    ```text
    ~/Library/Application Support/Sid Meier's Civilization 5/MODS/
    ```
-   *(If the `MODS` folder doesn't exist, create it).*
-2. Copy the **`Civ5AIBridge`** folder into it.
+   *(If the `MODS` folder does not exist, create it).*
+2. Copy the **`Civ5AIBridge`** folder into that `MODS` folder.
 
-### Step 3: Enable Logging in Civ 5 config.ini
+---
+
+### Step 2: Enable Logging in Civ 5
 1. In Finder (<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>), go to:
-   - Steam: `~/Library/Application Support/Sid Meier's Civilization 5/`
-   - Aspyr: `~/Documents/Aspyr/Sid Meier's Civilization 5/`
+   - **Steam version**: `~/Library/Application Support/Sid Meier's Civilization 5/`
+   - **Aspyr / App Store version**: `~/Documents/Aspyr/Sid Meier's Civilization 5/`
 2. Open `config.ini` in TextEdit and ensure:
    ```ini
    LoggingEnabled = 1
    MessageLog = 1
    ```
-3. Save the file.
-
-### Step 4: Launch the App
-Double-click **`Launch_Advisor.command`** or run `python3 app.py` in Terminal.
+3. Save and close the file.
 
 ---
 
-## 4. `pywebview` Troubleshooting & Workarounds
-
-If you experience issues installing or running `pywebview` (e.g. `ModuleNotFoundError: No module named 'webview'` or `Access is denied` during pip install):
-
-### Method A: User Flag Installation
-If standard pip fails due to permissions, install it only for your current user:
-```bash
-pip install --user pywebview
-```
-
-### Method B: Anaconda / Conda Environments
-If you use Anaconda / Miniconda, open the Anaconda Prompt and run:
-```bash
-conda install -c conda-forge pywebview
-```
-The included `Launch_Advisor.bat` will automatically detect and activate Anaconda.
-
-### Method C: Zero-Install AI Strategy Method (Direct Log Drag & Drop)
-If you cannot install Python or `pywebview` on a computer, you can still get tactical AI advice:
-1. Enable the `Civ5AIBridge` mod in Civ 5 and play your game.
-2. The game automatically saves every detail to:
-   - `Documents\My Games\Sid Meier's Civilization 5\Logs\Lua.log`
-3. Drag and drop `Lua.log` into **ChatGPT (GPT-4o)** or **Claude** in your browser and ask for turn recommendations!
+### Step 3: Launch & Play (macOS)
+1. Open **Terminal** and install `pywebview`:
+   ```bash
+   pip3 install pywebview
+   ```
+2. In the project folder, double-click **`Launch_Advisor.command`** (or run `python3 app.py` in Terminal).
+3. Start Civ 5 $\rightarrow$ **MODS** $\rightarrow$ enable **Civ 5 AI Bridge** $\rightarrow$ Play!
 
 ---
 
-## 5. Enabling the Mod in Civilization V
+## 🌐 Zero-Install Web Browser Alternative
 
-> ⚠️ **Important:** You must start your game via the Civ 5 **MODS** menu, not standard Single Player, for the data exporter to run.
-
-1. Launch **Sid Meier's Civilization V**.
-2. On the main menu, click **MODS**.
-3. You will see **Civ 5 AI Bridge** listed. Click the checkbox on the right to enable it (a green checkmark will appear).
-4. Click **NEXT** at the bottom.
-5. Click **Single Player** $\rightarrow$ **Set Up Game** (or Load Game).
-6. Start your game! The companion app will immediately detect your empire and render the map.
+If you do not want to install any applications:
+1. Enable the mod in Civ 5 and play your turns normally.
+2. Civ 5 automatically writes your full game state to:
+   - **Windows:** `Documents\My Games\Sid Meier's Civilization 5\Logs\Lua.log`
+   - **macOS:** `~/Library/Application Support/Sid Meier's Civilization 5/Logs/Lua.log`
+3. Simply **drag and drop `Lua.log` directly into ChatGPT (GPT-4o) or Claude** in your web browser and ask:
+   > *"Analyze my Civ 5 game state log. What should be my next technology, city production focus, and military strategy?"*
 
 ---
 
-## 6. Configuring AI
+## 🤖 Configuring an AI Brain (Optional)
 
-### Free Local AI (Ollama - Recommended)
-1. Download [Ollama](https://ollama.com).
-2. Run in terminal: `ollama run llama3.1`
-3. In Civ 5 AI Advisor $\rightarrow$ **⚙️ AI Settings**:
+The software functions fully offline as a **Live Tactical Map Viewer** without an AI. To activate live AI strategy recommendations:
+
+Click the **⚙️ AI Settings** button in the left sidebar:
+
+### Option A: 100% Free & Local AI (Ollama)
+1. Download and install [Ollama](https://ollama.com).
+2. Open your terminal/command prompt and run:
+   ```bash
+   ollama run llama3.1
+   ```
+3. In the Advisor App's **⚙️ AI Settings**:
    - **Endpoint**: `http://127.0.0.1:11434/api/chat`
    - **Model**: `llama3.1`
+   - **API Key**: *(Leave blank)*
 
-### Cloud AI (OpenAI ChatGPT)
-1. Generate an API key from [OpenAI API Keys](https://platform.openai.com/api-keys).
-2. In Civ 5 AI Advisor $\rightarrow$ **⚙️ AI Settings**:
+### Option B: Cloud AI (OpenAI ChatGPT)
+1. Get an API key from [platform.openai.com](https://platform.openai.com/api-keys).
+2. In the Advisor App's **⚙️ AI Settings**:
    - **Endpoint**: `https://api.openai.com/v1/chat/completions`
-   - **Model**: `gpt-4o`
-   - **API Key**: `sk-...`
+   - **Model**: `gpt-4o` (or `gpt-4-turbo`)
+   - **API Key**: Paste your secret key.
 
 ---
 
-## 7. Troubleshooting & Common Issues
+## ❓ Troubleshooting & FAQ
 
-- **The map is blank or says "Waiting for sync"**:
-  - Make sure you enabled the mod in the in-game MODS menu.
-  - Make sure `LoggingEnabled = 1` and `MessageLog = 1` are set in `config.ini`.
-- **Mod not showing in Civ 5 MODS menu**:
-  - Ensure the folder is placed in `Documents\My Games\Sid Meier's Civilization 5\MODS\Civ5AIBridge` and not doubly nested (`Civ5AIBridge\Civ5AIBridge`).
-- **Game crashes on startup**:
-  - Clear your cache by deleting everything inside `Documents\My Games\Sid Meier's Civilization 5\cache\`.
+| Problem | Solution |
+| :--- | :--- |
+| **"Waiting for game data..." / Map not loading** | Make sure you launched the match through the **MODS** menu and that `LoggingEnabled = 1` and `MessageLog = 1` are set in `config.ini`. |
+| **Mod is not showing up in Civ 5 MODS menu** | Verify that `Civ5AIBridge.modinfo` and `StateExporter.lua` are directly inside `Documents\My Games\Sid Meier's Civilization 5\MODS\Civ5AIBridge\`. |
+| **Old data showing from previous game** | Delete the contents of `Documents\My Games\Sid Meier's Civilization 5\cache\` and restart Civ 5. |
+
+---
+
+## 📜 License
+MIT License. Created for the Civilization V community.
