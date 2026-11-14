@@ -26,6 +26,24 @@ local function Safe(fn, default)
 end
 local function List(t) return "[" .. table.concat(t, ",") .. "]" end
 
+-- Luxury + strategic resources a player has (available count includes imports)
+function ResList(p)
+    local t = {}
+    for r in GameInfo.Resources() do
+        local usage = Safe(function() return Game.GetResourceUsageType(r.ID) end, -1)
+        if usage == ResourceUsageTypes.RESOURCEUSAGE_LUXURY or usage == ResourceUsageTypes.RESOURCEUSAGE_STRATEGIC then
+            local avail = Safe(function() return p:GetNumResourceAvailable(r.ID, true) end, 0)
+            local total = Safe(function() return p:GetNumResourceTotal(r.ID, false) end, 0)
+            if (avail and avail ~= 0) or (total and total > 0) then
+                table.insert(t, '{"n":' .. J(string.gsub(r.Type, "RESOURCE_", "")) ..
+                    ',"lux":' .. tostring(usage == ResourceUsageTypes.RESOURCEUSAGE_LUXURY) ..
+                    ',"avail":' .. N(avail) .. ',"own":' .. N(total) .. '}')
+            end
+        end
+    end
+    return List(t)
+end
+
 function BuildAdvisorJson(me)
     local pMe = Players[me]
     local teamMe = Teams[pMe:GetTeam()]
@@ -153,6 +171,58 @@ function BuildAdvisorJson(me)
         table.insert(c, '"can_train":' .. List(canU))
         table.insert(c, '"can_project":' .. List(canP))
         table.insert(c, '"specialists":' .. N(Safe(function() return pCity:GetSpecialistCount(0) + pCity:GetSpecialistCount(1) + pCity:GetSpecialistCount(2) + pCity:GetSpecialistCount(3) + pCity:GetSpecialistCount(4) + pCity:GetSpecialistCount(5) end, 0)))
+        -- v1.2: citizen management data
+        table.insert(c, '"focus":' .. N(Safe(function() return pCity:GetFocusType() end, -1)))
+        table.insert(c, '"connected":' .. tostring(Safe(function() return pCity:IsCapital() or pMe:IsCapitalConnectedToCity(pCity) end, false)))
+        table.insert(c, '"great_work_slots":' .. N(Safe(function()
+            local n = 0
+            for b in GameInfo.Buildings() do
+                if (b.GreatWorkCount or 0) > 0 and pCity:IsHasBuilding(b.ID) then n = n + b.GreatWorkCount end
+            end
+            return n
+        end, 0)) .. ',"great_works":' .. N(Safe(function() return pCity:GetNumGreatWorks() end, 0)))
+        table.insert(c, '"unemployed":' .. N(Safe(function() return pCity:GetSpecialistCount(GameInfo.Specialists.SPECIALIST_CITIZEN.ID) end, 0)))
+        table.insert(c, '"religion":' .. J(Safe(function()
+            local r = pCity:GetReligiousMajority()
+            if r and r >= 0 then return T(GameInfo.Religions[r].Description) end
+            return ""
+        end, "")))
+        local spec = {}
+        for s in GameInfo.Specialists() do
+            if s.Type ~= "SPECIALIST_CITIZEN" then
+                local slots = 0
+                for b in GameInfo.Buildings() do
+                    if b.SpecialistType == s.Type and (b.SpecialistCount or 0) > 0 and pCity:IsHasBuilding(b.ID) then
+                        slots = slots + b.SpecialistCount
+                    end
+                end
+                local cnt = Safe(function() return pCity:GetSpecialistCount(s.ID) end, 0)
+                local gpp = Safe(function() return pCity:GetSpecialistGreatPersonProgress(s.ID) end, 0)
+                if slots > 0 or cnt > 0 or gpp > 0 then
+                    table.insert(spec, '{"n":' .. J(T(s.Description)) .. ',"count":' .. N(cnt) .. ',"slots":' .. N(slots) .. ',"gpp":' .. N(gpp) .. '}')
+                end
+            end
+        end
+        table.insert(c, '"specialist_slots":' .. List(spec))
+        local tiles = {}
+        Safe(function()
+            local yF, yP, yG, yS = YieldTypes.YIELD_FOOD, YieldTypes.YIELD_PRODUCTION, YieldTypes.YIELD_GOLD, YieldTypes.YIELD_SCIENCE
+            local yC, yFa = YieldTypes.YIELD_CULTURE, YieldTypes.YIELD_FAITH
+            for i = 0, pCity:GetNumCityPlots() - 1 do
+                local plot = pCity:GetCityIndexPlot(i)
+                if plot and plot:GetOwner() == me and not (plot:GetX() == pCity:GetX() and plot:GetY() == pCity:GetY()) then
+                    local wc = plot:GetWorkingCity()
+                    if wc == nil or wc:GetID() == pCity:GetID() then
+                        local function Y(t) if t == nil then return 0 end return plot:CalculateYield(t, true) or 0 end
+                        table.insert(tiles, '[' .. plot:GetX() .. ',' .. plot:GetY() .. ',' .. N(Y(yF)) .. ',' .. N(Y(yP)) .. ',' .. N(Y(yG)) .. ',' ..
+                            N(Y(yS)) .. ',' .. N(Y(yC)) .. ',' .. N(Y(yFa)) .. ',' .. (pCity:IsWorkingPlot(plot) and 1 or 0) .. ',' ..
+                            plot:GetResourceType() .. ',' .. plot:GetImprovementType() .. ',' .. (plot:IsImprovementPillaged() and 1 or 0) .. ']')
+                    end
+                end
+            end
+            return true
+        end, false)
+        table.insert(c, '"tiles":' .. List(tiles))
         table.insert(cities, '{' .. table.concat(c, ",") .. '}')
     end
     table.insert(out, '"cities":' .. List(cities))
@@ -167,10 +237,27 @@ function BuildAdvisorJson(me)
             local war = Safe(function() return teamMe:IsAtWar(p:GetTeam()) end, false)
             if p:IsMinorCiv() then
                 local ally = Safe(function() return p:GetAlly() end, -1)
+                local quests = {}
+                Safe(function()
+                    for k, v in pairs(MinorCivQuestTypes) do
+                        if type(v) == "number" and v >= 0 and p:IsMinorCivActiveQuestForPlayer(me, v) then
+                            table.insert(quests, J(string.gsub(k, "MINOR_CIV_QUEST_", "")))
+                        end
+                    end
+                    return true
+                end, false)
+                local cap = Safe(function() return p:GetCapitalCity() end, nil)
                 table.insert(cs, '{"name":' .. J(p:GetName()) .. ',"met":' .. tostring(met) .. ',"war":' .. tostring(war) ..
                     ',"influence":' .. N(Safe(function() return p:GetMinorCivFriendshipWithMajor(me) end, 0)) ..
                     ',"ally":' .. J(Safe(function() if ally and ally > -1 then return Players[ally]:GetName() end return "" end, "")) ..
-                    ',"type":' .. J(Safe(function() return T(GameInfo.MinorCivTraits[p:GetMinorCivTrait()].Description) end, "")) .. '}')
+                    ',"ally_influence":' .. N(Safe(function() if ally and ally > -1 and ally ~= me then return p:GetMinorCivFriendshipWithMajor(ally) end return 0 end, 0)) ..
+                    ',"type":' .. J(Safe(function() return T(GameInfo.MinorCivTraits[p:GetMinorCivTrait()].Description) end, "")) ..
+                    ',"personality":' .. N(Safe(function() return p:GetPersonality() end, -1)) ..
+                    ',"x":' .. N(cap and cap:GetX() or -1) .. ',"y":' .. N(cap and cap:GetY() or -1) ..
+                    ',"protected_by_me":' .. tostring(Safe(function() return pMe:IsProtectingMinor(i) end, false)) ..
+                    ',"can_bully_gold":' .. tostring(Safe(function() return p:CanMajorBullyGold(me) end, false)) ..
+                    ',"bully_gold":' .. N(Safe(function() return p:GetMinorCivBullyGoldAmount(me) end, 0)) ..
+                    ',"quests":' .. List(quests) .. '}')
             else
                 local nTech = Safe(function() return team:GetTeamTechs():GetNumTechsKnown() end, 0)
                 local parts = {}
@@ -199,10 +286,88 @@ function BuildAdvisorJson(me)
                     ',"their_influence_on_me":' .. N(Safe(function() return p:GetInfluenceLevel(me) end, 0)) ..
                     ',"holds_own_capital":' .. tostring(Safe(function() local c = p:GetCapitalCity(); return c ~= nil and c:IsOriginalCapital() and c:GetOriginalOwner() == i end, false)) ..
                     ',"projects":' .. List(parts) ..
-                    ',"military":' .. N(Safe(function() return p:GetMilitaryMight() end, 0)) .. '}')
+                    ',"military":' .. N(Safe(function() return p:GetMilitaryMight() end, 0)) ..
+                    ',"treasury":' .. N(Safe(function() return p:GetGold() end, 0)) ..
+                    ',"gpt":' .. N(Safe(function() return p:CalculateGoldRate() end, 0)) ..
+                    ',"happiness":' .. N(Safe(function() return p:GetExcessHappiness() end, 0)) ..
+                    ',"open_borders_with_me":' .. tostring(Safe(function() return team:IsAllowsOpenBordersToTeam(pMe:GetTeam()) end, false)) ..
+                    ',"religion":' .. J(Safe(function() local r = p:GetReligionCreatedByPlayer(); if r and r > 0 then return T(GameInfo.Religions[r].Description) end return "" end, "")) ..
+                    ',"ideology":' .. J(Safe(function()
+                        for b in GameInfo.PolicyBranchTypes() do
+                            if b.PurchaseByLevel and p:IsPolicyBranchUnlocked(b.ID) then return T(b.Description) end
+                        end
+                        return ""
+                    end, "")) ..
+                    ',"resources":' .. ResList(p) .. '}')
             end
         end
     end
+    table.insert(out, '"my_resources":' .. ResList(pMe))
+    table.insert(out, '"my_ideology":' .. J(Safe(function()
+        for b in GameInfo.PolicyBranchTypes() do
+            if b.PurchaseByLevel and pMe:IsPolicyBranchUnlocked(b.ID) then return T(b.Description) end
+        end
+        return ""
+    end, "")))
+    -- Religion / pantheon options
+    table.insert(out, '"pantheons_available":' .. List(Safe(function()
+        local t = {}
+        if pMe:HasCreatedPantheon() then return t end
+        for _, id in ipairs(Game.GetAvailablePantheonBeliefs()) do
+            local b = GameInfo.Beliefs[id]
+            table.insert(t, '{"n":' .. J(T(b.ShortDescription)) .. ',"d":' .. J(T(b.Description)) .. '}')
+        end
+        return t
+    end, {})))
+    table.insert(out, '"faith_for_pantheon":' .. N(Safe(function() return Game.GetMinimumFaithNextPantheon() end, 0)))
+    table.insert(out, '"faith_for_prophet":' .. N(Safe(function() return pMe:GetMinimumFaithNextGreatProphet() end, 0)))
+    table.insert(out, '"religions_left":' .. N(Safe(function() return Game.GetNumReligionsStillToFound() end, 0)))
+    table.insert(out, '"happiness_total":' .. N(Safe(function() return pMe:GetHappiness() end, 0)) ..
+        ',"unhappiness_total":' .. N(Safe(function() return pMe:GetUnhappiness() end, 0)))
+    -- Wars between AIs (an AI busy elsewhere is less likely to attack you)
+    local wars = {}
+    for i = 0, GameDefines.MAX_MAJOR_CIVS - 1 do
+        for j = i + 1, GameDefines.MAX_MAJOR_CIVS - 1 do
+            local a, b = Players[i], Players[j]
+            if i ~= me and j ~= me and a and b and a:IsAlive() and b:IsAlive() and not a:IsMinorCiv() and not b:IsMinorCiv()
+                and Safe(function() return Teams[a:GetTeam()]:IsAtWar(b:GetTeam()) end, false) then
+                table.insert(wars, J(a:GetCivilizationShortDescription() .. " vs " .. b:GetCivilizationShortDescription()))
+            end
+        end
+    end
+    table.insert(out, '"ai_wars":' .. List(wars))
+    -- Trade routes in use
+    table.insert(out, '"my_trade_routes":' .. List(Safe(function()
+        local t = {}
+        for _, r in ipairs(pMe:GetTradeRoutes()) do
+            table.insert(t, '{"from":' .. J(r.FromCityName) .. ',"to":' .. J(r.ToCityName) .. ',"to_civ":' .. J(r.ToCivilizationShortDescription or "") ..
+                ',"domain":' .. N(r.Domain) .. ',"turns_left":' .. N(r.TurnsLeft) ..
+                ',"from_gold":' .. N((r.FromGPT or 0) / 100) .. ',"from_sci":' .. N((r.FromScience or 0) / 100) ..
+                ',"to_food":' .. N((r.ToFood or 0) / 100) .. ',"to_prod":' .. N((r.ToProduction or 0) / 100) .. '}')
+        end
+        return t
+    end, {})))
+    -- World Congress
+    table.insert(out, '"congress":' .. Safe(function()
+        if not Game.GetNumActiveLeagues or Game.GetNumActiveLeagues() == 0 then return '{"active":false}' end
+        local league = Game.GetActiveLeague()
+        return '{"active":true,"my_votes":' .. N(league:CalculateStartingVotesForMember(me)) ..
+            ',"turns_until_session":' .. N(league:GetTurnsUntilSession()) ..
+            ',"host":' .. J(Safe(function() return Players[league:GetHostMember()]:GetCivilizationShortDescription() end, "")) .. '}'
+    end, '{"active":false}'))
+    -- What is waiting for a decision this turn
+    local todo = {}
+    if Safe(function() return pMe:GetCurrentResearch() == -1 end, false) then table.insert(todo, J("Choose research")) end
+    if Safe(function() return pMe:GetJONSCulture() >= pMe:GetNextPolicyCost() end, false) then table.insert(todo, J("Adopt a social policy")) end
+    if Safe(function() return not pMe:HasCreatedPantheon() and pMe:GetFaith() >= Game.GetMinimumFaithNextPantheon() end, false) then table.insert(todo, J("Found a pantheon")) end
+    if Safe(function() return pMe:GetNumFreeTechs() > 0 end, false) then table.insert(todo, J("Pick a free tech")) end
+    if Safe(function() return pMe.GetNumFreePolicies ~= nil and pMe:GetNumFreePolicies() > 0 end, false) then table.insert(todo, J("Pick a free policy")) end
+    for pCity in pMe:Cities() do
+        if Safe(function() return pCity:GetProductionNameKey() == nil or pCity:GetProductionNameKey() == "" end, false) then
+            table.insert(todo, J("Set production in " .. pCity:GetName()))
+        end
+    end
+    table.insert(out, '"todo":' .. List(todo))
     table.insert(out, '"my_techs":' .. N(Safe(function() return techs:GetNumTechsKnown() end, 0)))
     table.insert(out, '"my_military":' .. N(Safe(function() return pMe:GetMilitaryMight() end, 0)))
     table.insert(out, '"rivals":' .. List(rivals))
@@ -352,7 +517,30 @@ function DumpGameState()
                 local lvl = pUnit:GetLevel() or 1
                 local xp = pUnit:GetExperience() or 0
                 
-                table.insert(data, '{"id": ' .. uId .. ', "name": "' .. unitName .. '", "x": ' .. x .. ', "y": ' .. y .. ', "hp": ' .. hp .. ', "max_hp": ' .. maxHp .. ', "lvl": ' .. lvl .. ', "xp": ' .. xp .. '}')
+                -- v1.2: unit type, strength, domain (+ details for my own units)
+                local ui = GameInfo.Units[pUnit:GetUnitType()]
+                local extra = ', "type": "' .. (ui and ui.Type or "") .. '", "str": ' .. ((ui and ui.Combat) or 0) ..
+                    ', "rstr": ' .. ((ui and ui.RangedCombat) or 0) .. ', "dom": "' .. ((ui and ui.Domain) or "") .. '"' ..
+                    ', "civilian": ' .. tostring(((ui and ui.Combat) or 0) == 0 and ((ui and ui.RangedCombat) or 0) == 0) ..
+                    ', "embarked": ' .. tostring(Safe(function() return pUnit:IsEmbarked() end, false))
+                if i == activePlayerID then
+                    local upType = Safe(function() return pUnit:GetUpgradeUnitType() end, -1)
+                    local build = Safe(function()
+                        local b = pUnit:GetBuildType()
+                        if b and b > -1 then return GameInfo.Builds[b].Type end
+                        return ""
+                    end, "")
+                    extra = extra .. ', "moves": ' .. N(Safe(function() return pUnit:MovesLeft() / GameDefines.MOVE_DENOMINATOR end, 0)) ..
+                        ', "max_moves": ' .. N(Safe(function() return pUnit:MaxMoves() / GameDefines.MOVE_DENOMINATOR end, 0)) ..
+                        ', "fortified": ' .. tostring(Safe(function() return pUnit:GetFortifyTurns() > 0 end, false)) ..
+                        ', "automated": ' .. tostring(Safe(function() return pUnit:IsAutomated() end, false)) ..
+                        ', "can_promote": ' .. tostring(Safe(function() return pUnit:IsPromotionReady() end, false)) ..
+                        ', "can_upgrade": ' .. tostring(Safe(function() return pUnit:CanUpgradeRightNow(false) end, false)) ..
+                        ', "upgrade_to": "' .. Safe(function() if upType and upType > -1 then return GameInfo.Units[upType].Type end return "" end, "") .. '"' ..
+                        ', "upgrade_cost": ' .. N(Safe(function() if upType and upType > -1 then return pUnit:UpgradePrice(upType) end return 0 end, 0)) ..
+                        ', "build": "' .. build .. '"'
+                end
+                table.insert(data, '{"id": ' .. uId .. ', "name": "' .. unitName .. '", "x": ' .. x .. ', "y": ' .. y .. ', "hp": ' .. hp .. ', "max_hp": ' .. maxHp .. ', "lvl": ' .. lvl .. ', "xp": ' .. xp .. extra .. '}')
             end
             table.insert(data, ']}')
         end
@@ -384,6 +572,14 @@ function DumpGameState()
             if rne == 1 then tStr = tStr .. ',"rne":1' end
             if h == 1 then tStr = tStr .. ',"h":1' end
             if m == 1 then tStr = tStr .. ',"m":1' end
+            -- v1.2: fog of war (from the active player's view), roads, pillage, lakes
+            local activeTeam = Players[activePlayerID]:GetTeam()
+            if not pPlot:IsRevealed(activeTeam, false) then tStr = tStr .. ',"fog":1'
+            elseif pPlot:IsVisible(activeTeam, false) then tStr = tStr .. ',"vis":1' end
+            local rt = pPlot:GetRouteType()
+            if rt and rt > -1 then tStr = tStr .. ',"rt":' .. rt end
+            if pPlot:IsImprovementPillaged() then tStr = tStr .. ',"pil":1' end
+            if pPlot:IsLake() then tStr = tStr .. ',"lake":1' end
             tStr = tStr .. '}'
             table.insert(mapData, tStr)
         end

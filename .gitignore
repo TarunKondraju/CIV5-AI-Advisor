@@ -21,3 +21,8 @@ Civ5_AI_Advisor_macOS/
 Civ5_AI_Advisor_Universal/
 build/
 dist/
+
+# Advisor runtime files
+.advisor_cache/
+advisor_orders.json
+__pycache__/
